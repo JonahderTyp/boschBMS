@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<script src="Chart.js">
+</script>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale= 1">
+    <title>BoschBMS</title>
+    <link rel="icon" type="image/x-icon" href="favicon.png">
+    <style>
+        html {
+            font-family: Arial;
+            display: inline-block;
+            text-align: center;
+        }
+
+        /*.card {
+            /* Add shadows to create the "card" effect 
+
+            background-color: lightgray;
+            padding: 1%;
+            transition: 0.3s;
+        }*/
+
+        .column {
+            float: left;
+            width: 20%;
+            padding: 0 0px;
+        }
+
+        /* Remove extra left and right margins, due to padding */
+        .row {
+            margin: 0 -0px;
+        }
+
+        /* Clear floats after the columns */
+        .row:after {
+            content: "";
+            display: table;
+            clear: both;
+        }
+
+        /* Responsive columns */
+        @media screen and (max-width: 500px) {
+            .column {
+
+                width: 100%;
+                display: block;
+                margin-bottom: 5px;
+            }
+        }
+
+        /* Style the counter cards */
+        .card {
+            box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2);
+            padding: 0.01%;
+            text-align: center;
+            background-color: #e9e9e9;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            -webkit-transition: .4s;
+            transition: .4s;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            -webkit-transition: .4s;
+            transition: .4s;
+        }
+
+        input:checked+.slider {
+            background-color: #2196F3;
+        }
+
+        input:focus+.slider {
+            box-shadow: 0 0 1px #2196F3;
+        }
+
+        input:checked+.slider:before {
+            -webkit-transform: translateX(26px);
+            -ms-transform: translateX(26px);
+            transform: translateX(26px);
+        }
+
+        /* Rounded sliders */
+        .slider.round {
+            border-radius: 34px;
+        }
+
+        .slider.round:before {
+            border-radius: 50%;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="row">
+        <div class="column">
+            <div class="card" id="voltage_card">
+                <div class="container">
+                    <h3>Voltage: <span id="Voltage">no data</span> V</h3>
+                </div>
+            </div>
+        </div>
+
+        <div class="column">
+            <div class="card" id="current_card">
+                <div class="container">
+                    <h3>Current: <span id="Current">no data</span> A</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <div class="row">
+        <div class="column">
+
+            <div class="card" id="watt_card">
+                <div class="container">
+                    <h3>Power: <span id="Watt">no data</span> W</h3>
+                </div>
+            </div>
+        </div>
+
+
+        <div class="column">
+            <div class="card" id="percent_card">
+                <div class="container">
+                    <h3>Capacity: <span id="Percent">no data</span> %</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+
+    <h2>Enable:
+        <label class="switch">
+            <input type="checkbox" id="EnableCheckBox" onclick="EnableFunction()">
+            <span class="slider round"></span>
+        </label>
+    </h2>
+
+    <h4>Consumption:</h4>
+    <div id="chart-current" class="container"></div>
+
+    <p>Time: <span id="Time">no data</span></p>
+
+    <script>
+        //changeColor("percent_card", "#32CD32");
+        var xValues = [];
+        var yValues = [];
+        var timestamp = [];
+
+
+        var chartT = new Highcharts.Chart({
+            chart: { 
+                renderTo: 'chart-current' ,
+                height: 250
+            },
+            title: { text: null },
+            series: [{
+                showInLegend: false,
+                data: []
+            }],
+            plotOptions: {
+                line: {
+                    animation: false,
+                    dataLabels: { enabled: false }
+                },
+                series: { 
+                    color: '#059e8a',
+                }
+            },
+            xAxis: {
+                type: 'datetime',
+                dateTimeLabelFormats: { second: '%H:%M:%S' }
+            },
+            yAxis: {
+                title: { text: 'Ampers' },
+                min: 0
+                //title: { text: 'Temperature (Fahrenheit)' }
+            },
+            credits: { enabled: false }
+        });
+
+
+
+        function getColors() {
+            var xmlhttp = new XMLHttpRequest();
+            xmlhttp.onreadystatechange = function () {
+                if (this.readyState == 4 && this.status == 200) {
+                    var myArr = JSON.parse(this.responseText);
+                    updateColors(myArr);
+                }
+            };
+            xmlhttp.open("GET", "setColors", true);
+            xmlhttp.send();
+        }
+
+        function updateColors(jsondata) {
+            try {
+                const keys = Object.keys(jsondata);
+                for (let i = 0; i < keys.length; i++) {
+                    const key = keys[i];
+                    document.getElementById(key).style.backgroundColor = jsondata[key];
+                }
+            }
+            catch (err) {
+                console.log(err.message);
+            }
+        }
+
+        function EnableFunction() {
+            var checkBox = document.getElementById("EnableCheckBox").checked;
+            console.log(checkBox);
+            var xhr = new XMLHttpRequest();
+            xhr.open("GET", "/enable?value=" + checkBox, true);
+            xhr.send();
+        }
+
+        function getData() {
+            var xmlhttp = new XMLHttpRequest();
+            xmlhttp.onreadystatechange = function () {
+                if (this.readyState == 4 && this.status == 200) {
+                    var myArr = JSON.parse(this.responseText);
+                    //console.log("updateSite:");
+                    //console.log(myArr);
+                    updateSite(myArr);
+                }
+            };
+            xmlhttp.open("GET", "getData", true);
+            xmlhttp.send();
+        }
+
+        function updateSite(jsondata) {
+            //console.log("updateSite:");
+            //console.log(jsondata);
+            const keys = Object.keys(jsondata);
+            for (let i = 0; i < keys.length; i++) {
+                const key = keys[i];
+                //console.log(key, jsondata[key]);
+                document.getElementById(key).innerHTML = jsondata[key];
+                if (key == "Current") {
+                    var x = (new Date()).getTime(),
+                        y = parseFloat(jsondata[key]);
+
+                    if (chartT.series[0].data.length > 100) {
+                        chartT.series[0].addPoint([x, y], true, true, true);
+                    } else {
+                        chartT.series[0].addPoint([x, y], true, false, true);
+                    }
+                }
+            }
+        }
+
+
+        setInterval(function () {
+            getData();
+            getColors();
+        }, 500);
+
+    </script>
+</body>
+
+</html>
