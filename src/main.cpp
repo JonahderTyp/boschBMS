@@ -1,10 +1,6 @@
 #include <Arduino.h>
 #include <ESP32CAN.h>
 #include <CAN_config.h>
-#include <SPIFFS.h>
-#include <WiFi.h>
-#include <AsyncTCP.h>
-#include "ESPAsyncWebServer.h"
 #include <ArduinoJson.h>
 #include <Adafruit_NeoPixel.h>
 #include <stdlib.h>
@@ -26,11 +22,7 @@ Measurement current("Current", "mA");
 // Battery Temperature
 Measurement battTemp("Battery Temperature", "°C");
 
-
-
 Battery BatteryData;
-//WifiData wifiData;
-// AsyncWebServer server(80);
 advancedDisplay display();
 
 Adafruit_NeoPixel strip(9, 0, NEO_GRB + NEO_KHZ800);
@@ -146,101 +138,6 @@ void handle_fan()
   ledcWrite(2, fanspeed);
 }
 
-void initWiFi()
-{
-  WiFi.mode(WIFI_STA);
-  WiFi.begin("smarttest", "smarttest");
-  Serial.print("Connecting to WiFi ..");
-  while (WiFi.status() != WL_CONNECTED)
-  {
-    debugln('.');
-    delay(1000);
-  }
-  Serial.println(WiFi.localIP());
-  // WiFi.config
-}
-
-// String processor(const String &var)
-// {
-//   debugln(var);
-//   return String();
-// }
-
-String getBatteryVoltage()
-{
-  return String(String(BatteryData.voltage / 1000) + "V");
-}
-
-void initalizeWifi(uint8_t mode)
-{
-  // static boolean initalized = false;
-  if (mode == 1)
-  {
-    initWiFi();
-  }
-  if (mode == 2)
-  {
-    WiFi.softAP(SSID, PASS, 1, 0, 4);
-    debug("IP address: ");
-    debugln(WiFi.softAPIP());
-
-    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
-              { request->send(SPIFFS, "/index.html"); });
-
-    server.on("/favicon.png", HTTP_GET, [](AsyncWebServerRequest *request)
-              { request->send(SPIFFS, "/favicon.png", "image/png"); });
-
-    server.on("/Chart.js", HTTP_GET, [](AsyncWebServerRequest *request)
-              { request->send(SPIFFS, "/Chart.js"); });
-
-    /*server.on("/getVoltage", HTTP_GET, [](AsyncWebServerRequest *request)
-              { request->send_P(200, "text/plain", String(battery_voltage).c_str()); });*/
-
-    server.on("/setColors", HTTP_GET, [](AsyncWebServerRequest *request)
-              {
-    AsyncResponseStream *response = request->beginResponseStream("application/json");
-      DynamicJsonDocument json(1024);
-      //json["voltage_card"] = "#FFA500";
-      json["current_card"] = (BatteryData.current > 5000) ? ((BatteryData.current > 8000) ? "#FF4500" : "#ffa500" ) : "#2E8B57" ;
-      //json["watt_card"] = "#FDF5E6";
-      json["percent_card"] = (BatteryData.percent < 20) ? ((BatteryData.percent < 10) ? "#FF4500" : "#ffa500" ) : "#2E8B57";
-      serializeJson(json, *response);
-      request->send(response); });
-
-    server.on("/getData", HTTP_GET, [](AsyncWebServerRequest *request)
-              {
-    AsyncResponseStream *response = request->beginResponseStream("application/json");
-      DynamicJsonDocument json(1024);
-      json["Voltage"] = String(BatteryData.voltage/1000.0);
-      json["Current"] = String(BatteryData.current/1000.0, 3);
-      json["Watt"] = String(BatteryData.power);
-      json["Percent"] = String(BatteryData.percent);
-      serializeJson(json, *response);
-      request->send(response); });
-
-    server.begin();
-  }
-}
-
-void handle_led()
-{
-  int8_t percent = -10;
-  for (uint8_t i = 6; i >= 2; i--)
-  {
-    percent += 20;
-    if (percent <= BatteryData.percent)
-    {
-      strip.setPixelColor(i, strip.Color(0, 255, 0));
-    }
-    else
-    {
-      strip.setPixelColor(i, strip.Color(0, 0, 0));
-    }
-  }
-
-  strip.show();
-}
-
 void setup()
 {
   debugbegin(115200);
@@ -251,10 +148,6 @@ void setup()
   errorManager.addError(batteryDisconect);
   errorManager.addError(internalOvertemp);
 
-  strip.begin();            // INITIALIZE NeoPixel strip object (REQUIRED)
-  strip.show();             // Turn OFF all pixels ASAP
-  strip.setBrightness(255); // Set BRIGHTNESS to about 1/5 (max = 255)
-
   for (uint8_t i = 0; i < strip.numPixels(); i++)
   {
     strip.setPixelColor(i, strip.Color(255, 255, 255));
@@ -263,29 +156,11 @@ void setup()
 
   buz.beep(10, 50, 1, 1);
 
-  // display
-  display.init(splashscreen);
-
   // LEDS
   pinMode(LED_STA_PIN, OUTPUT);
   pinMode(LED_HB_PIN, OUTPUT);
   pinMode(LED_EXTC_PIN, OUTPUT);
   pinMode(SPK_PIN, OUTPUT);
-
-  // Initialize SPIFFS
-  if (!SPIFFS.begin(true))
-  {
-    Serial.println("An Error has occurred while mounting SPIFFS");
-    return;
-  }
-
-  // WiFi
-  //
-
-  // Fan PWM Setup
-  ledcSetup(2, 5000, 8);
-  ledcAttachPin(FAN_PIN, 2);
-  // ledcWrite(2, 255);
 
   // CAN Setup
   CAN_cfg.speed = CAN_SPEED_500KBPS;
@@ -307,10 +182,6 @@ void setup()
 
 void loop()
 {
-  // if (millis() - lastmeasurement >= 200)
-  // {
-  //   lastmeasurement = millis();
-  // }
 
   readcan();
 
@@ -319,19 +190,19 @@ void loop()
 
   switch (errorManager.getMaxPrio())
   {
-  case (int) Priority::critical:
-    buz.beep(1000,500,0,5);
+  case (int)Priority::critical:
+    buz.beep(1000, 500, 0, 5);
     break;
-  case (int) Priority::warningHigh:
-    buz.beep(1000,1000,0,4);
+  case (int)Priority::warningHigh:
+    buz.beep(1000, 1000, 0, 4);
     break;
-  case (int) Priority::warningMedium:
-    buz.beep(100,500,1000,3);
+  case (int)Priority::warningMedium:
+    buz.beep(100, 500, 1000, 3);
     break;
-  case (int) Priority::warningLow:
-    //buz.beep(100,500,1000,2);
+  case (int)Priority::warningLow:
+    // buz.beep(100,500,1000,2);
     break;
-  case (int) Priority::nonCritical:
+  case (int)Priority::nonCritical:
     break;
 
   default:
@@ -358,10 +229,7 @@ void loop()
 
   handleHBled();
   handle_fan();
-  handle_led();
-
   buz.handle();
-  display.handle();
 
   yield();
 }
