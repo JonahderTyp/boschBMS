@@ -1,7 +1,6 @@
 #include <Arduino.h>
 #include <ESP32CAN.h>
 #include <CAN_config.h>
-#include <ArduinoJson.h>
 #include <Adafruit_NeoPixel.h>
 #include <stdlib.h>
 #include <ErrorManager.h>
@@ -9,21 +8,12 @@
 
 #include "config.h"
 #include "Battery.h"
-#include "advancedDisplay.h"
-#include "tools.h"
 #include "Speaker.h"
 #include "Led.h"
 #include "Error.h"
-
-// Internal Temperature in Celsius
-Measurement internalTemp("Internal Temp", "°C");
-// Current in mA
-Measurement current("Current", "mA");
-// Battery Temperature
-Measurement battTemp("Battery Temperature", "°C");
+#include "blink.h"
 
 Battery BatteryData;
-advancedDisplay display();
 
 Adafruit_NeoPixel strip(9, 0, NEO_GRB + NEO_KHZ800);
 
@@ -48,30 +38,7 @@ unsigned long previousHBMillis = 0;
 
 uint8_t fanspeed;
 
-void handleHBled()
-{
-  if (0)
-  {
-    digitalWrite(LED_HB_PIN, LOW);
-    if (millis() - previousHBMillis >= 100)
-    {
-      previousHBMillis = millis();
-      digitalWrite(LED_STA_PIN, !digitalRead(LED_STA_PIN));
-      debugln("---ERROR---");
-    }
-  }
-  else
-  {
-    digitalWrite(LED_STA_PIN, LOW);
-    if (millis() - previousHBMillis >= 1000)
-    {
-      previousHBMillis = millis();
-      digitalWrite(LED_HB_PIN, !digitalRead(LED_HB_PIN));
-      debugln("---HB---");
-      // buz.beep(10);
-    }
-  }
-}
+Blink HBled(100, 1000);
 
 uint64_t readcan()
 {
@@ -227,7 +194,6 @@ void loop()
     batteryDisconect.clearError();
   }
 
-  handleHBled();
   handle_fan();
   buz.handle();
 
